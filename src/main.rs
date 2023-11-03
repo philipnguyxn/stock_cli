@@ -14,7 +14,7 @@ struct StockCandles {
     h: Vec<f64>,
     l: Vec<f64>,
     o: Vec<f64>,
-    s: Vec<String>,
+    s: String,
     t: Vec<i128>,
     v: Vec<i128>,
 }
@@ -33,10 +33,14 @@ impl StockCandles {
 
         let url =
             format!(
-            "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=D&token={}&from={}&to={}",
-            symbol, finnhub_api_key, from_date.timestamp(), to_date.timestamp()
+            "https://finnhub.io/api/v1/stock/candle?symbol={}&resolution=D&from={}&to={}&token={}",
+            symbol, from_date.timestamp(), to_date.timestamp(), finnhub_api_key
         );
         let response = reqwest::get(&url).await?.json::<StockCandles>().await?;
+
+        if response.s != "ok" {
+            panic!("Error: {}", response.s);
+        }
 
         Ok(response)
     }
@@ -77,13 +81,41 @@ async fn main() -> Result<(), ExitFailure> {
 
     chart.configure_mesh().light_line_style(WHITE).draw()?;
 
-    chart.draw_series(
-        stock_candles
-            .c
-            .iter()
-            .zip(stock_candles.t.iter())
-            .map(|(y, x)| CandleStick::new(x, open, high, low, close, GREEN.filled(), RED, 15)),
-    )?;
+    stock_candles
+        .c
+        .iter()
+        .enumerate()
+        .for_each(|(index, &close_price)| {
+            let open_price = stock_candles.o[index];
+            let high_price = stock_candles.h[index];
+            let low_price = stock_candles.l[index];
+            let timestamp = stock_candles.t[index];
+
+            // Define the color based on whether the stock closed higher or lower than it opened
+            let (filled_color, stick_color) = if close_price > open_price {
+                (GREEN.filled(), GREEN)
+            } else {
+                (RED.filled(), RED)
+            };
+
+            // Create the CandleStick instance
+            let candle_stick = CandleStick::new(
+                timestamp,
+                open_price,
+                high_price,
+                low_price,
+                close_price,
+                filled_color,
+                stick_color,
+                15, // Width of the candle stick
+            );
+
+            // Draw the CandleStick on the chart
+            // You would handle the Result here or use `expect`/`unwrap` if you are sure it should never fail
+            chart
+                .draw_series(std::iter::once(candle_stick))
+                .expect("Failed to draw series");
+        });
 
     root.present().expect(
         "Unable to write result to file, please make sure 'static' dir exists under current dir",
