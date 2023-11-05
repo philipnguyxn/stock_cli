@@ -1332,6 +1332,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "exitfailure",
+ "failure",
  "plotters",
  "reqwest",
  "serde",
